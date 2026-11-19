@@ -95,6 +95,7 @@ func GenerateForm(compiler *clientpb.Compiler) (*GenerateFormResult, error) {
 					options := []huh.Option[string]{
 						huh.NewOption("mTLS", "mtls"),
 						huh.NewOption("WireGuard", "wg"),
+						huh.NewOption("WireGuard over HTTPS", "wg-https"),
 						huh.NewOption("HTTP(S)", "http"),
 						huh.NewOption("DNS", "dns"),
 					}

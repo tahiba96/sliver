@@ -157,6 +157,10 @@ func applyGenerateProfilesNewForm(cmd *cobra.Command, result *forms.GenerateProf
 		if err := cmd.Flags().Set("wg", c2Value); err != nil {
 			return "", err
 		}
+	case "wg-https":
+		if err := cmd.Flags().Set("wg-https", c2Value); err != nil {
+			return "", err
+		}
 	case "http":
 		if err := cmd.Flags().Set("http", c2Value); err != nil {
 			return "", err
@@ -221,6 +225,10 @@ func applyGenerateProfilesNewBeaconForm(cmd *cobra.Command, result *forms.Genera
 		}
 	case "wg":
 		if err := cmd.Flags().Set("wg", c2Value); err != nil {
+			return "", err
+		}
+	case "wg-https":
+		if err := cmd.Flags().Set("wg-https", c2Value); err != nil {
 			return "", err
 		}
 	case "http":

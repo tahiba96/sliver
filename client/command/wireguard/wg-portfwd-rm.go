@@ -45,6 +45,7 @@ func WGPortFwdRmCmd(cmd *cobra.Command, con *console.SliverClient, args []string
 		con.PrintErrorf("Error converting portforward ID (%s) to int: %s", args[0], err.Error())
 		return
 	}
+	stopWGUDPClientRelay(int32(fwdID))
 
 	stopReq, err := con.Rpc.WGStopPortForward(context.Background(), &sliverpb.WGPortForwardStopReq{
 		ID:      int32(fwdID),

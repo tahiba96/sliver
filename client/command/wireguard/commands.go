@@ -67,6 +67,7 @@ func SliverCommands(con *console.SliverClient) []*cobra.Command {
 	flags.Bind("wg portforward", false, wgPortFwdAddCmd, func(f *pflag.FlagSet) {
 		f.Int32P("bind", "b", 1080, "port to listen on the WireGuard tun interface")
 		f.StringP("remote", "r", "", "remote target host:port (e.g., 10.0.0.1:445)")
+		f.StringP("protocol", "", "tcp", "forward protocol: tcp or udp")
 	})
 	wgPortFwdCmd.AddCommand(wgPortFwdAddCmd)
 

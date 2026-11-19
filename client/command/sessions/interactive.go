@@ -63,6 +63,14 @@ func InteractiveCmd(cmd *cobra.Command, con *console.SliverClient, _ []string) {
 	}
 	c2s = append(c2s, wgC2...)
 
+	wgHTTPSC2F, _ := cmd.Flags().GetString("wg-https")
+	wgHTTPSC2, err := generate.ParseWGHTTPSc2(wgHTTPSC2F)
+	if err != nil {
+		con.PrintErrorf("%s\n", err.Error())
+		return
+	}
+	c2s = append(c2s, wgHTTPSC2...)
+
 	httpC2F, _ := cmd.Flags().GetString("http")
 	httpC2, err := generate.ParseHTTPc2(httpC2F)
 	if err != nil {
@@ -118,6 +126,13 @@ func InteractiveCmd(cmd *cobra.Command, con *console.SliverClient, _ []string) {
 				return
 			}
 			c2s = append(c2s, wgC2...)
+		case "wg+https":
+			wgHTTPSC2, err = generate.ParseWGHTTPSc2(beacon.ActiveC2)
+			if err != nil {
+				con.PrintErrorf("%s\n", err.Error())
+				return
+			}
+			c2s = append(c2s, wgHTTPSC2...)
 		case "https":
 			fallthrough
 		case "http":

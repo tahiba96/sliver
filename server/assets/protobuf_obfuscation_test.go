@@ -315,8 +315,8 @@ func TestRewriteProtobufStructTagsPreservesSliverpbWireNumbers(t *testing.T) {
 	}
 	before := protobufFieldTags(t, source)
 	after := protobufFieldTags(t, transformed)
-	if len(before) != 656 || len(after) != len(before) {
-		t.Fatalf("protobuf tag coverage = %d original, %d rewritten; want 656 each", len(before), len(after))
+	if len(before) != 662 || len(after) != len(before) {
+		t.Fatalf("protobuf tag coverage = %d original, %d rewritten; want 662 each", len(before), len(after))
 	}
 	rewrittenByOriginal := make(map[string]string)
 	packedFound := false
@@ -357,7 +357,7 @@ func TestSetupGoPathRewritesAllImplantProtobufFieldTags(t *testing.T) {
 		path       string
 		fieldCount int
 	}{
-		{"sliverpb/sliver.pb.go", 656},
+		{"sliverpb/sliver.pb.go", 662},
 		{"commonpb/common.pb.go", 19},
 		{"dnspb/dns.pb.go", 6},
 	} {

@@ -286,6 +286,7 @@ service SliverRPC {
   // *** Wireguard Specific ***
   rpc WGStartPortForward(sliverpb.WGPortForwardStartReq)
       returns (sliverpb.WGPortForward);
+  rpc WGUDPRelay(sliverpb.WGUDPRelayReq) returns (sliverpb.WGUDPRelay);
   rpc WGStopPortForward(sliverpb.WGPortForwardStopReq)
       returns (sliverpb.WGPortForward);
   rpc WGStartSocks(sliverpb.WGSocksStartReq) returns (sliverpb.WGSocks);

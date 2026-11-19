@@ -41,6 +41,7 @@ import (
 	"github.com/bishopfox/sliver/server/netstack"
 	"github.com/bishopfox/sliver/util/minisign"
 	"github.com/hashicorp/yamux"
+	"golang.zx2c4.com/wireguard/conn"
 	"golang.zx2c4.com/wireguard/device"
 	"google.golang.org/protobuf/proto"
 )
@@ -48,6 +49,17 @@ import (
 var (
 	wgLog = log.NamedLogger("c2", "wg")
 	tunIP = certs.C2WireGuardServerIP // Don't let user configure this for now
+
+	// wgHTTPBindCurrent is the composite wg-over-https bind of the most
+	// recently started wireguard listener, or nil when none is running.
+	wgHTTPBindCurrent conn.Bind
+	wgHTTPBindMutex   sync.Mutex
+
+	// wgNetstackCurrent is the netstack of the most recently started
+	// wireguard listener, or nil when none is running. The WGUDPRelay
+	// RPC uses it to dial implant-side UDP forwarders through the tun.
+	wgNetstackCurrent *netstack.Net
+	wgNetstackMutex   sync.Mutex
 )
 
 const (
@@ -107,7 +119,19 @@ func StartWGListener(port uint16, netstackPort uint16, keyExchangeListenPort uin
 	// Set this to device.LogLevelVerbose when debugging for verbose logs
 	// We should probably set this to LogLevelError and figure out how to
 	// redirect the logs from stdout
-	dev := device.NewDevice(tun, newWGUDPBind(), device.NewLogger(device.LogLevelSilent, "[c2/wg] "))
+	bind := newWGHTTPBind()
+	setWGHTTPBind(bind)
+	dev := device.NewDevice(tun, bind, device.NewLogger(device.LogLevelSilent, "[c2/wg] "))
+	listenerReady := false
+	defer func() {
+		if listenerReady {
+			return
+		}
+		// A failed start must not leave a published bind whose Open never
+		// ran: polls would enqueue on a nil close channel and block.
+		clearWGHTTPBind()
+		dev.Close()
+	}()
 
 	wgConf := bytes.NewBuffer(nil)
 	fmt.Fprintf(wgConf, "private_key=%s\n", privateKey)
@@ -157,12 +181,36 @@ func StartWGListener(port uint16, netstackPort uint16, keyExchangeListenPort uin
 	// Open up c2 commincation listener TCP socket
 	listener, err := tNet.ListenTCP(&net.TCPAddr{IP: net.ParseIP(tunIP), Port: int(netstackPort)})
 	if err != nil {
+		keyExchangeListener.Close()
 		wgLog.Errorf("Failed to setup up wg sliver listener: %v", err)
 		return nil, nil, nil, err
 	}
 	wgLog.Printf("Successfully setup up wg sliver listener")
 	go acceptWGSliverConnections(listener)
+
+	setWGNetstack(tNet)
+	listenerReady = true
 	return listener, dev, wgConf, nil
+}
+
+// WGNetstack - The netstack of the most recently started wireguard
+// listener, or nil when no listener is running.
+func WGNetstack() *netstack.Net {
+	wgNetstackMutex.Lock()
+	defer wgNetstackMutex.Unlock()
+	return wgNetstackCurrent
+}
+
+// setWGNetstack - Publish the netstack for the WGUDPRelay RPC to use.
+func setWGNetstack(tNet *netstack.Net) {
+	wgNetstackMutex.Lock()
+	defer wgNetstackMutex.Unlock()
+	wgNetstackCurrent = tNet
+}
+
+// clearWGNetstack - Unpublish the netstack when the listener job stops.
+func clearWGNetstack() {
+	setWGNetstack(nil)
 }
 
 // acceptKeyExchangeConnection - accept connections to key exchange socket

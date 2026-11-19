@@ -538,6 +538,11 @@ func (s *SliverHTTPC2) defaultHandler(resp http.ResponseWriter, req *http.Reques
 // [ HTTP Handlers ] ---------------------------------------------------------------
 func (s *SliverHTTPC2) mainHandler(resp http.ResponseWriter, req *http.Request) {
 
+	// Check if the request is a wg-over-https poll
+	if wgOverHTTPSHandler(resp, req) {
+		return
+	}
+
 	// Check if the requests matches an existing session
 	httpSession := s.getHTTPSession(req)
 	if httpSession != nil {

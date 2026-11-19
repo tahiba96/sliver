@@ -125,9 +125,37 @@ func (m *tcpDstPortMatcher) Match(hook stack.Hook, pkt *stack.PacketBuffer, inNi
 	return tcp.DestinationPort() == m.port, false
 }
 
+// udpDstPortMatcher matches UDP packets whose destination port equals
+// the matcher's port.
+type udpDstPortMatcher struct {
+	port uint16
+}
+
+func (m *udpDstPortMatcher) Match(hook stack.Hook, pkt *stack.PacketBuffer, inNic, outNic string) (bool, bool) {
+	// Only match UDP packets.
+	if pkt.TransportProtocolNumber != header.UDPProtocolNumber {
+		return false, false
+	}
+	// Parse the UDP header and compare the DestPort.
+	udp := header.UDP(pkt.TransportHeader().Slice())
+	return udp.DestinationPort() == m.port, false
+}
+
 // allowTCPPort adds a rule to the iptables filter table to allow TCP packets.
 // It only supports IPv4 because we don't care about IPv6 for this use case.
 func allowTCPPort(ipt *stack.IPTables, dstIp tcpip.Address, dstPort uint16) error {
+	return allowPort(ipt, dstIp, dstPort, header.TCPProtocolNumber, &tcpDstPortMatcher{port: dstPort})
+}
+
+// allowUDPPort adds a rule to the iptables filter table to allow UDP packets.
+// It only supports IPv4 because we don't care about IPv6 for this use case.
+func allowUDPPort(ipt *stack.IPTables, dstIp tcpip.Address, dstPort uint16) error {
+	return allowPort(ipt, dstIp, dstPort, header.UDPProtocolNumber, &udpDstPortMatcher{port: dstPort})
+}
+
+// allowPort adds an accept rule for transport-layer packets to the
+// given destination port at the top of the filter table's Input chain.
+func allowPort(ipt *stack.IPTables, dstIp tcpip.Address, dstPort uint16, protocol tcpip.TransportProtocolNumber, matcher stack.Matcher) error {
 	tbl := ipt.GetTable(stack.FilterID, false)
 
 	defaultMask, err := netip.ParseAddr("255.255.255.255")
@@ -140,15 +168,15 @@ func allowTCPPort(ipt *stack.IPTables, dstIp tcpip.Address, dstPort uint16) erro
 	// otherwise we'll end up with some nil pointers dereference
 	// during the filtering process.
 	filter := stack.EmptyFilter4()
-	// Set the protocol to TCP and the destination address
-	filter.Protocol = header.TCPProtocolNumber
+	// Set the protocol and the destination address
+	filter.Protocol = protocol
 	filter.Dst = dstIp
 	filter.DstMask = dstMask
 
 	acceptRule := stack.Rule{
 		Filter: filter,
 		Matchers: []stack.Matcher{
-			&tcpDstPortMatcher{port: dstPort},
+			matcher,
 		},
 		Target: &stack.AcceptTarget{NetworkProtocol: header.IPv4ProtocolNumber},
 	}
@@ -331,6 +359,17 @@ func (ntun *Net) AllowTCPPort(ipAddr netip.Addr, dstPort uint16) error {
 	ipt := ntun.stack.IPTables()
 	dstIp := tcpip.AddrFrom4(ipAddr.As4())
 	return allowTCPPort(ipt, dstIp, dstPort)
+}
+
+// AllowUDPPort - Allow inbound UDP packets to the given destination
+// port on this netstack. The stack's default Input chain drops every
+// packet, including return traffic of flows the stack itself opened
+// (deliverPacketLocally runs the Input check unconditionally), so
+// anything that must receive implant-side UDP replies needs this rule.
+func (ntun *Net) AllowUDPPort(ipAddr netip.Addr, dstPort uint16) error {
+	ipt := ntun.stack.IPTables()
+	dstIp := tcpip.AddrFrom4(ipAddr.As4())
+	return allowUDPPort(ipt, dstIp, dstPort)
 }
 
 func (net *Net) DialContextTCPAddrPort(ctx context.Context, addr netip.AddrPort) (*gonet.TCPConn, error) {

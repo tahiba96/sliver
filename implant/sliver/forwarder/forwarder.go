@@ -21,8 +21,20 @@ package forwarder
 // {{if .Config.IncludeWG}}
 var (
 	tcpForwarders map[int]*WGTCPForwarder
+	udpForwarders map[int]*WGUDPForwarder
 	socksServers  map[int]*WGSocksServer
+
+	// forwarderID is shared by TCP and UDP forwarders. Each used to
+	// start at 0, so a TCP forwarder and a UDP forwarder could have
+	// the same ID and stop/list would hit the wrong one.
+	forwarderID int
 )
+
+func nextForwarderID() int {
+	id := forwarderID
+	forwarderID++
+	return id
+}
 
 // GetTCPForwarders - Returns a map of WireGuard TCP forwarders
 func GetTCPForwarders() map[int]*WGTCPForwarder {
@@ -47,6 +59,24 @@ func RemoveTCPForwarder(id int) {
 	delete(tcpForwarders, id)
 }
 
+// GetUDPForwarders - Returns a map of WireGuard UDP forwarders
+func GetUDPForwarders() map[int]*WGUDPForwarder {
+	return udpForwarders
+}
+
+// GetUDPForwarder - Returns a WireGuard UDP forwarder by id
+func GetUDPForwarder(id int) *WGUDPForwarder {
+	if f, ok := udpForwarders[id]; ok {
+		return f
+	}
+	return nil
+}
+
+// RemoveUDPForwarder - Remove a UDP forwarder by id
+func RemoveUDPForwarder(id int) {
+	delete(udpForwarders, id)
+}
+
 // GetSocksServer - Returns a WireGuard SOCKS proxy by id
 func GetSocksServer(id int) *WGSocksServer {
 	if s, ok := socksServers[id]; ok {
@@ -62,6 +92,7 @@ func RemoveSocksServer(id int) {
 
 func init() {
 	tcpForwarders = make(map[int]*WGTCPForwarder)
+	udpForwarders = make(map[int]*WGUDPForwarder)
 	socksServers = make(map[int]*WGSocksServer)
 }
 

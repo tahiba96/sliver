@@ -1026,6 +1026,7 @@ message PivotListeners {
 message WGPortForwardStartReq {
   int32 LocalPort = 1;
   string RemoteAddress = 2;
+  string Protocol = 3;
   commonpb.Request Request = 9;
 }
 
@@ -1037,6 +1038,23 @@ message WGPortForward {
 message WGPortForwardStopReq {
   int32 ID = 1;
   commonpb.Request Request = 9;
+}
+
+// WGUDPRelayReq - One datagram for the WGUDPRelay RPC. The server
+// dials out of the wireguard netstack toward the implant-side UDP
+// forwarder at TargetAddress and forwards Payload as a single
+// datagram; the reply datagram (if any arrives within the timeout) is
+// returned in WGUDPRelay.Data.
+message WGUDPRelayReq {
+  string TargetAddress = 1;
+  bytes Payload = 2;
+  commonpb.Request Request = 9;
+}
+
+// WGUDPRelay - The reply datagram, if one arrived in time.
+message WGUDPRelay {
+  bytes Data = 1;
+  commonpb.Response Response = 8;
 }
 
 message WGSocksStartReq {

@@ -32,8 +32,6 @@ import (
 	"github.com/bishopfox/sliver/implant/sliver/netstack"
 )
 
-var tcpForwarderID = 0
-
 // WGTCPForwarder - A WireGuard TCP forwarder
 type WGTCPForwarder struct {
 	ID            int
@@ -54,9 +52,8 @@ func NewWGTCPForwarder(targetAddress string, tunIP string, tunPort int, tnet *ne
 		targetAddress: targetAddress,
 		tnet:          tnet,
 		done:          make(chan bool),
-		ID:            tcpForwarderID,
+		ID:            nextForwarderID(),
 	}
-	nextTCPForwarderID()
 	tcpForwarders[tf.ID] = tf
 	return tf
 }
@@ -117,10 +114,6 @@ func forward(src, dst net.Conn) {
 	defer src.Close()
 	defer dst.Close()
 	io.Copy(dst, src)
-}
-
-func nextTCPForwarderID() {
-	tcpForwarderID++
 }
 
 // {{end}}

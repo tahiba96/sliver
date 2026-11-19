@@ -136,6 +136,10 @@ func applyGenerateBeaconForm(cmd *cobra.Command, result *forms.GenerateBeaconFor
 		if err := cmd.Flags().Set("wg", c2Value); err != nil {
 			return err
 		}
+	case "wg-https":
+		if err := cmd.Flags().Set("wg-https", c2Value); err != nil {
+			return err
+		}
 	case "http":
 		if err := cmd.Flags().Set("http", c2Value); err != nil {
 			return err

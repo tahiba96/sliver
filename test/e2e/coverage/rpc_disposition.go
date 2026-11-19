@@ -254,6 +254,7 @@ func ComprehensiveRPCDispositions() []RPCDisposition {
 		"StopRportFwdListener",
 		"WGStartPortForward",
 		"WGStopPortForward",
+		"WGUDPRelay",
 		"WGStartSocks",
 		"WGStopSocks",
 		"WGListForwarders",

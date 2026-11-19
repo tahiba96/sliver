@@ -1199,7 +1199,7 @@ func GenerateConfig(name string, implantConfig *clientpb.ImplantConfig) (*client
 	}
 
 	// Generate wg Keys as needed
-	if models.IsC2Enabled([]string{"wg"}, implantConfig.C2) {
+	if models.IsC2Enabled([]string{"wg", "wg+https"}, implantConfig.C2) {
 		if strings.TrimSpace(implantConfig.WGPeerTunIP) == "" {
 			uniqueIP, implantPrivKey, _, err := GenerateUniqueWGPeerKeys()
 			if err != nil {

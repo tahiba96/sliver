@@ -335,6 +335,7 @@ func coreImplantFlags(name string, cmd *cobra.Command) {
 		// C2 channels
 		f.StringP("mtls", "m", "", "mtls connection strings")
 		f.StringP("wg", "g", "", "wg connection strings")
+		f.StringP("wg-https", "G", "", "wg-over-https connection strings (wg+https://host:port)")
 		f.StringP("http", "b", "", "http(s) connection strings")
 		f.StringP("dns", "n", "", "dns connection strings")
 		f.StringP("named-pipe", "p", "", "named-pipe connection strings")

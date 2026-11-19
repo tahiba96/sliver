@@ -207,6 +207,7 @@ const (
 	SliverRPC_ListWasmExtensions_FullMethodName               = "/rpcpb.SliverRPC/ListWasmExtensions"
 	SliverRPC_ExecWasmExtension_FullMethodName                = "/rpcpb.SliverRPC/ExecWasmExtension"
 	SliverRPC_WGStartPortForward_FullMethodName               = "/rpcpb.SliverRPC/WGStartPortForward"
+	SliverRPC_WGUDPRelay_FullMethodName                       = "/rpcpb.SliverRPC/WGUDPRelay"
 	SliverRPC_WGStopPortForward_FullMethodName                = "/rpcpb.SliverRPC/WGStopPortForward"
 	SliverRPC_WGStartSocks_FullMethodName                     = "/rpcpb.SliverRPC/WGStartSocks"
 	SliverRPC_WGStopSocks_FullMethodName                      = "/rpcpb.SliverRPC/WGStopSocks"
@@ -441,6 +442,7 @@ type SliverRPCClient interface {
 	ExecWasmExtension(ctx context.Context, in *sliverpb.ExecWasmExtensionReq, opts ...grpc.CallOption) (*sliverpb.ExecWasmExtension, error)
 	// *** Wireguard Specific ***
 	WGStartPortForward(ctx context.Context, in *sliverpb.WGPortForwardStartReq, opts ...grpc.CallOption) (*sliverpb.WGPortForward, error)
+	WGUDPRelay(ctx context.Context, in *sliverpb.WGUDPRelayReq, opts ...grpc.CallOption) (*sliverpb.WGUDPRelay, error)
 	WGStopPortForward(ctx context.Context, in *sliverpb.WGPortForwardStopReq, opts ...grpc.CallOption) (*sliverpb.WGPortForward, error)
 	WGStartSocks(ctx context.Context, in *sliverpb.WGSocksStartReq, opts ...grpc.CallOption) (*sliverpb.WGSocks, error)
 	WGStopSocks(ctx context.Context, in *sliverpb.WGSocksStopReq, opts ...grpc.CallOption) (*sliverpb.WGSocks, error)
@@ -2343,6 +2345,16 @@ func (c *sliverRPCClient) WGStartPortForward(ctx context.Context, in *sliverpb.W
 	return out, nil
 }
 
+func (c *sliverRPCClient) WGUDPRelay(ctx context.Context, in *sliverpb.WGUDPRelayReq, opts ...grpc.CallOption) (*sliverpb.WGUDPRelay, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(sliverpb.WGUDPRelay)
+	err := c.cc.Invoke(ctx, SliverRPC_WGUDPRelay_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *sliverRPCClient) WGStopPortForward(ctx context.Context, in *sliverpb.WGPortForwardStopReq, opts ...grpc.CallOption) (*sliverpb.WGPortForward, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(sliverpb.WGPortForward)
@@ -2734,6 +2746,7 @@ type SliverRPCServer interface {
 	ExecWasmExtension(context.Context, *sliverpb.ExecWasmExtensionReq) (*sliverpb.ExecWasmExtension, error)
 	// *** Wireguard Specific ***
 	WGStartPortForward(context.Context, *sliverpb.WGPortForwardStartReq) (*sliverpb.WGPortForward, error)
+	WGUDPRelay(context.Context, *sliverpb.WGUDPRelayReq) (*sliverpb.WGUDPRelay, error)
 	WGStopPortForward(context.Context, *sliverpb.WGPortForwardStopReq) (*sliverpb.WGPortForward, error)
 	WGStartSocks(context.Context, *sliverpb.WGSocksStartReq) (*sliverpb.WGSocks, error)
 	WGStopSocks(context.Context, *sliverpb.WGSocksStopReq) (*sliverpb.WGSocks, error)
@@ -3319,6 +3332,9 @@ func (UnimplementedSliverRPCServer) ExecWasmExtension(context.Context, *sliverpb
 }
 func (UnimplementedSliverRPCServer) WGStartPortForward(context.Context, *sliverpb.WGPortForwardStartReq) (*sliverpb.WGPortForward, error) {
 	return nil, status.Error(codes.Unimplemented, "method WGStartPortForward not implemented")
+}
+func (UnimplementedSliverRPCServer) WGUDPRelay(context.Context, *sliverpb.WGUDPRelayReq) (*sliverpb.WGUDPRelay, error) {
+	return nil, status.Error(codes.Unimplemented, "method WGUDPRelay not implemented")
 }
 func (UnimplementedSliverRPCServer) WGStopPortForward(context.Context, *sliverpb.WGPortForwardStopReq) (*sliverpb.WGPortForward, error) {
 	return nil, status.Error(codes.Unimplemented, "method WGStopPortForward not implemented")
@@ -6694,6 +6710,24 @@ func _SliverRPC_WGStartPortForward_Handler(srv interface{}, ctx context.Context,
 	return interceptor(ctx, in, info, handler)
 }
 
+func _SliverRPC_WGUDPRelay_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(sliverpb.WGUDPRelayReq)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SliverRPCServer).WGUDPRelay(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: SliverRPC_WGUDPRelay_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SliverRPCServer).WGUDPRelay(ctx, req.(*sliverpb.WGUDPRelayReq))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _SliverRPC_WGStopPortForward_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(sliverpb.WGPortForwardStopReq)
 	if err := dec(in); err != nil {
@@ -7687,6 +7721,10 @@ var SliverRPC_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "WGStartPortForward",
 			Handler:    _SliverRPC_WGStartPortForward_Handler,
+		},
+		{
+			MethodName: "WGUDPRelay",
+			Handler:    _SliverRPC_WGUDPRelay_Handler,
 		},
 		{
 			MethodName: "WGStopPortForward",

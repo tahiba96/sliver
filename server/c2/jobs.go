@@ -118,6 +118,8 @@ func StartWGListenerJob(wgListener *clientpb.WGListenerReq) (*core.Job, error) {
 		if err != nil {
 			jobLog.Fatal("Error closing wg tunnel", err)
 		}
+		clearWGHTTPBind() // Stop serving wg-over-https polls
+		clearWGNetstack() // Stop relaying UDP datagrams into the tun
 		core.Jobs.Remove(job)
 		done <- true
 	}()

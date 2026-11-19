@@ -85,7 +85,7 @@ func (rpc *Server) Generate(ctx context.Context, req *clientpb.GenerateReq) (*cl
 		// configure c2 channels to enable
 		config = req.Config
 		config.IncludeMTLS = config.IncludeMTLS || models.IsC2Enabled([]string{"mtls"}, config.C2)
-		config.IncludeWG = config.IncludeWG || models.IsC2Enabled([]string{"wg"}, config.C2)
+		config.IncludeWG = config.IncludeWG || models.IsC2Enabled([]string{"wg", "wg+https"}, config.C2)
 		config.IncludeHTTP = config.IncludeHTTP || models.IsC2Enabled([]string{"http", "https"}, config.C2)
 		config.IncludeDNS = config.IncludeDNS || models.IsC2Enabled([]string{"dns"}, config.C2)
 		config.IncludeNamePipe = config.IncludeNamePipe || models.IsC2Enabled([]string{"namedpipe"}, config.C2)

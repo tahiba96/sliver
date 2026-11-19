@@ -33,6 +33,7 @@ func WGListenerCmd(cmd *cobra.Command, con *console.SliverClient, args []string)
 	keyExchangePort, _ := cmd.Flags().GetUint32("key-port")
 
 	con.PrintInfof("Starting Wireguard listener (udp:%d, tcp-comms:%d, key-exchange:%d) ...\n", lport, nport, keyExchangePort)
+	con.PrintInfof("wg+https implants also require a running HTTPS listener; their URL port is the HTTPS port, not this UDP port.\n")
 	wg, err := con.Rpc.StartWGListener(context.Background(), &clientpb.WGListenerReq{
 		Port:    lport,
 		NPort:   nport,

@@ -56,6 +56,8 @@ const (
 	DefaultWGNPort = 8888
 	// DefaultWGKeyExPort is the default port for wg key exchange.
 	DefaultWGKeyExPort = 1337
+	// DefaultWGHTTPSPort is the default port for wg-over-https.
+	DefaultWGHTTPSPort = 443
 	// DefaultHTTPLPort is the default port for http.
 	DefaultHTTPLPort = 80
 	// DefaultHTTPSLPort is the default port for https.
@@ -191,6 +193,8 @@ func applyGenerateForm(cmd *cobra.Command, result *forms.GenerateFormResult) err
 		return cmd.Flags().Set("mtls", c2Value)
 	case "wg":
 		return cmd.Flags().Set("wg", c2Value)
+	case "wg-https":
+		return cmd.Flags().Set("wg-https", c2Value)
 	case "http":
 		return cmd.Flags().Set("http", c2Value)
 	case "dns":
@@ -297,6 +301,14 @@ func parseCompileFlags(cmd *cobra.Command, con *console.SliverClient) (string, *
 
 	c2s = append(c2s, wgC2...)
 
+	wgHTTPSC2F, _ := cmd.Flags().GetString("wg-https")
+	wgHTTPSC2, err := ParseWGHTTPSc2(wgHTTPSC2F)
+	if err != nil {
+		con.PrintErrorf("%s\n", err.Error())
+		return "", nil
+	}
+	c2s = append(c2s, wgHTTPSC2...)
+
 	httpC2F, _ := cmd.Flags().GetString("http")
 	httpC2, err := ParseHTTPc2(httpC2F)
 	if err != nil {
@@ -337,8 +349,8 @@ func parseCompileFlags(cmd *cobra.Command, con *console.SliverClient) (string, *
 		symbolObfuscation = !symbolObfuscation
 	}
 
-	if len(mtlsC2) == 0 && len(wgC2) == 0 && len(httpC2) == 0 && len(dnsC2) == 0 && len(namedPipeC2) == 0 && len(tcpPivotC2) == 0 {
-		con.PrintErrorf("Must specify at least one of --mtls, --wg, --http, --dns, --named-pipe, or --tcp-pivot\n")
+	if len(mtlsC2) == 0 && len(wgC2) == 0 && len(wgHTTPSC2) == 0 && len(httpC2) == 0 && len(dnsC2) == 0 && len(namedPipeC2) == 0 && len(tcpPivotC2) == 0 {
+		con.PrintErrorf("Must specify at least one of --mtls, --wg, --wg-https, --http, --dns, --named-pipe, or --tcp-pivot\n")
 		return "", nil
 	}
 
@@ -465,7 +477,9 @@ func parseCompileFlags(cmd *cobra.Command, con *console.SliverClient) (string, *
 	sgnEnabled := shellcodeEncoder == clientpb.ShellcodeEncoder_SHIKATA_GA_NAI // legacy field
 
 	var tunIP net.IP
-	if wg, _ := cmd.Flags().GetString("wg"); wg != "" {
+	wg, _ := cmd.Flags().GetString("wg")
+	wgHTTPS, _ := cmd.Flags().GetString("wg-https")
+	if wg != "" || wgHTTPS != "" {
 		uniqueWGIP, err := con.Rpc.GenerateUniqueIP(context.Background(), &commonpb.Empty{})
 		tunIP = net.ParseIP(uniqueWGIP.IP)
 		if err != nil {
@@ -1258,6 +1272,72 @@ func ParseWGc2(args string) ([]*clientpb.ImplantC2, error) {
 		})
 	}
 	return c2s, nil
+}
+
+// ParseWGHTTPSc2 - Parse wg-over-https connection string arg.
+func ParseWGHTTPSc2(args string) ([]*clientpb.ImplantC2, error) {
+	c2s := []*clientpb.ImplantC2{}
+	if args == "" {
+		return c2s, nil
+	}
+	for index, arg := range strings.Split(args, ",") {
+		arg = strings.TrimSpace(arg)
+		// Lowercase only the scheme check. ToLower on the whole URL
+		// rewrites proxy usernames and passwords.
+		if !strings.HasPrefix(strings.ToLower(arg), "wg+https://") {
+			return nil, fmt.Errorf("invalid wg+https schema, connection strings must start with wg+https://: %s", arg)
+		}
+		uri, err := url.Parse(arg)
+		if err != nil {
+			return nil, err
+		}
+		if uri.Scheme != "wg+https" {
+			return nil, fmt.Errorf("invalid wg+https schema: %s", uri.Scheme)
+		}
+		if uri.Port() == "" {
+			uri.Host = fmt.Sprintf("%s:%d", uri.Hostname(), DefaultWGHTTPSPort)
+		}
+		if ok, err := hasValidC2AdvancedOptions(uri.Query()); !ok {
+			return nil, err
+		}
+		if ok, err := hasValidWGHTTPAdvancedOptions(uri.Query()); !ok {
+			return nil, err
+		}
+		c2s = append(c2s, &clientpb.ImplantC2{
+			Priority: uint32(index),
+			URL:      uri.String(),
+		})
+	}
+	return c2s, nil
+}
+
+// hasValidWGHTTPAdvancedOptions - Only a fixed set of advanced
+// options apply to wg+https connection strings, reject everything
+// else.
+func hasValidWGHTTPAdvancedOptions(options url.Values) (bool, error) {
+	allowedOptions := map[string]bool{
+		"net-timeout":      true,
+		"tls-timeout":      true,
+		"proxy":            true,
+		"proxy-username":   true,
+		"proxy-password":   true,
+		"wg-poll-interval": true,
+	}
+	for key := range options {
+		if !allowedOptions[key] {
+			return false, fmt.Errorf("unknown advanced option for wg+https connection string: %s", key)
+		}
+	}
+	if options.Has("wg-poll-interval") {
+		pollInterval, err := time.ParseDuration(options.Get("wg-poll-interval"))
+		if err != nil {
+			return false, fmt.Errorf("error parsing C2 option \"wg-poll-interval\": %s", err.Error())
+		}
+		if pollInterval < time.Second || pollInterval > 10*time.Minute {
+			return false, fmt.Errorf("C2 option \"wg-poll-interval\" must be between 1s and 10m")
+		}
+	}
+	return true, nil
 }
 
 func hasValidC2AdvancedOptions(options url.Values) (bool, error) {

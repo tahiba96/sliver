@@ -22,6 +22,7 @@ package handlers
 
 import (
 	"fmt"
+	"strings"
 	// {{if .Config.Debug}}
 	"log"
 	// {{end}}
@@ -44,6 +45,13 @@ func wgListTCPForwardersHandler(_ []byte, resp RPCResponse) {
 			RemoteAddr: f.RemoteAddr(),
 		})
 	}
+	for _, f := range forwarder.GetUDPForwarders() {
+		fwdList = append(fwdList, &pb.WGTCPForwarder{
+			ID:         int32(f.ID),
+			LocalAddr:  f.LocalAddr(),
+			RemoteAddr: f.RemoteAddr(),
+		})
+	}
 	listResp.Forwarders = fwdList
 	data, err := proto.Marshal(listResp)
 	resp(data, err)
@@ -59,18 +67,42 @@ func wgStartPortfwdHandler(data []byte, resp RPCResponse) {
 		return
 	}
 
-	fwder := forwarder.NewWGTCPForwarder(fwdReq.RemoteAddress, wireguard.GetTUNAddress(), int(fwdReq.LocalPort), wireguard.GetTNet())
-	go fwder.Start()
-	fwdResp := &pb.WGPortForward{
-		Response: &commonpb.Response{},
-		Forwarder: &pb.WGTCPForwarder{
-			ID:         int32(fwder.ID),
-			LocalAddr:  fwder.LocalAddr(),
-			RemoteAddr: fwder.RemoteAddr(),
-		},
+	switch strings.ToLower(fwdReq.Protocol) {
+	case "", "tcp":
+		fwder := forwarder.NewWGTCPForwarder(fwdReq.RemoteAddress, wireguard.GetTUNAddress(), int(fwdReq.LocalPort), wireguard.GetTNet())
+		go fwder.Start()
+		fwdResp := &pb.WGPortForward{
+			Response: &commonpb.Response{},
+			Forwarder: &pb.WGTCPForwarder{
+				ID:         int32(fwder.ID),
+				LocalAddr:  fwder.LocalAddr(),
+				RemoteAddr: fwder.RemoteAddr(),
+			},
+		}
+		data, err = proto.Marshal(fwdResp)
+		resp(data, err)
+	case "udp":
+		fwder := forwarder.NewWGUDPForwarder(fwdReq.RemoteAddress, wireguard.GetTUNAddress(), int(fwdReq.LocalPort), wireguard.GetTNet())
+		go fwder.Start()
+		fwdResp := &pb.WGPortForward{
+			Response: &commonpb.Response{},
+			Forwarder: &pb.WGTCPForwarder{
+				ID:         int32(fwder.ID),
+				LocalAddr:  fwder.LocalAddr(),
+				RemoteAddr: fwder.RemoteAddr(),
+			},
+		}
+		data, err = proto.Marshal(fwdResp)
+		resp(data, err)
+	default:
+		respErr := &pb.WGPortForward{
+			Response: &commonpb.Response{
+				Err: fmt.Sprintf("unknown protocol %q, supported protocols are tcp and udp", fwdReq.Protocol),
+			},
+		}
+		data, err = proto.Marshal(respErr)
+		resp(data, err)
 	}
-	data, err = proto.Marshal(fwdResp)
-	resp(data, err)
 }
 
 func wgStopPortfwdHandler(data []byte, resp RPCResponse) {
@@ -85,10 +117,7 @@ func wgStopPortfwdHandler(data []byte, resp RPCResponse) {
 	stopResp := &pb.WGPortForward{
 		Response: &commonpb.Response{},
 	}
-	fwd := forwarder.GetTCPForwarder(int(stopReq.ID))
-	if fwd == nil {
-		stopResp.Response.Err = fmt.Sprintf("no forwarder found for id %d", stopReq.ID)
-	} else {
+	if fwd := forwarder.GetTCPForwarder(int(stopReq.ID)); fwd != nil {
 		stopResp.Forwarder = &pb.WGTCPForwarder{
 			ID:         int32(fwd.ID),
 			LocalAddr:  fwd.LocalAddr(),
@@ -96,6 +125,16 @@ func wgStopPortfwdHandler(data []byte, resp RPCResponse) {
 		}
 		fwd.Stop()
 		forwarder.RemoveTCPForwarder(fwd.ID)
+	} else if fwd := forwarder.GetUDPForwarder(int(stopReq.ID)); fwd != nil {
+		stopResp.Forwarder = &pb.WGTCPForwarder{
+			ID:         int32(fwd.ID),
+			LocalAddr:  fwd.LocalAddr(),
+			RemoteAddr: fwd.RemoteAddr(),
+		}
+		fwd.Stop()
+		forwarder.RemoveUDPForwarder(fwd.ID)
+	} else {
+		stopResp.Response.Err = fmt.Sprintf("no forwarder found for id %d", stopReq.ID)
 	}
 	data, err = proto.Marshal(stopResp)
 	resp(data, err)

@@ -471,7 +471,7 @@ func ImplantConfigFromProtobuf(pbConfig *clientpb.ImplantConfig) *ImplantConfig 
 	cfg.ShellcodeEncoder = int32(pbConfig.ShellcodeEncoder)
 
 	cfg.IncludeMTLS = pbConfig.IncludeMTLS || IsC2Enabled([]string{"mtls"}, pbConfig.C2)
-	cfg.IncludeWG = pbConfig.IncludeWG || IsC2Enabled([]string{"wg"}, pbConfig.C2)
+	cfg.IncludeWG = pbConfig.IncludeWG || IsC2Enabled([]string{"wg", "wg+https"}, pbConfig.C2)
 	cfg.IncludeHTTP = pbConfig.IncludeHTTP || IsC2Enabled([]string{"http", "https"}, pbConfig.C2)
 	cfg.IncludeDNS = pbConfig.IncludeDNS || IsC2Enabled([]string{"dns"}, pbConfig.C2)
 	cfg.IncludeNamePipe = pbConfig.IncludeNamePipe || IsC2Enabled([]string{"namedpipe"}, pbConfig.C2)
