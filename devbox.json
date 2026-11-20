@@ -1,0 +1,9 @@
+{
+  "packages": [
+    "go_1_24@latest",
+    "podman@latest",
+    "wireguard-tools@latest",
+    "gopls@latest",
+    "protobuf_36@latest"
+  ]
+}
