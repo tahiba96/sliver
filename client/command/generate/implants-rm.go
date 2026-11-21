@@ -13,7 +13,6 @@ import (
 // ImplantsRmCmd - Deletes an archived implant build from the server.
 func ImplantsRmCmd(cmd *cobra.Command, con *console.SliverClient, args []string) {
 	name := args[0]
-	// name := ctx.Args.String("name")
 	if name == "" {
 		con.PrintErrorf("No name specified\n")
 		return
@@ -23,9 +22,13 @@ func ImplantsRmCmd(cmd *cobra.Command, con *console.SliverClient, args []string)
 		con.PrintErrorf("No implant build found with name '%s'\n", name)
 		return
 	}
-	confirm := false
-	_ = forms.Confirm(fmt.Sprintf("Remove '%s' build?", name), &confirm)
+	skipConfirm, _ := cmd.Flags().GetBool("yes")
+	confirm := skipConfirm
 	if !confirm {
+		_ = forms.Confirm(fmt.Sprintf("Remove '%s' build?", name), &confirm)
+	}
+	if !confirm {
+		con.PrintInfof("Use --yes to remove a build without the confirmation prompt, or run this in a terminal\n")
 		return
 	}
 	_, err := con.Rpc.DeleteImplantBuild(context.Background(), &clientpb.DeleteReq{
@@ -35,4 +38,5 @@ func ImplantsRmCmd(cmd *cobra.Command, con *console.SliverClient, args []string)
 		con.PrintErrorf("Failed to delete implant %s\n", err)
 		return
 	}
+	con.PrintInfof("Successfully removed '%s' build\n", name)
 }

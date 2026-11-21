@@ -285,6 +285,9 @@ func Commands(con *console.SliverClient) []*cobra.Command {
 		},
 	}
 	carapace.Gen(implantsRmCmd).PositionalCompletion(ImplantBuildNameCompleter(con))
+	flags.Bind("implants rm", false, implantsRmCmd, func(f *pflag.FlagSet) {
+		f.BoolP("yes", "y", false, "skip the removal confirmation (broken or non-interactive terminals)")
+	})
 	implantBuildsCmd.AddCommand(implantsRmCmd)
 
 	implantsStageCmd := &cobra.Command{
